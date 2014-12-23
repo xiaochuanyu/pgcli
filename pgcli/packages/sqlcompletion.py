@@ -15,11 +15,16 @@ def suggest_type(full_text, text_before_cursor):
 
     parsed = sqlparse.parse(strip_partial_word(text_before_cursor))
 
-    if parsed:
-        last_token = parsed[0].token_prev(len(parsed[0].tokens))
-        last_token_v = last_token.value if last_token else ''
+    # Need to check if `p` is not empty, since an empty string will result in
+    # an empty tuple.
+    p = parsed[0] if parsed else None
+    n = p and len(p.tokens) or 0
+    last_token = p and p.token_prev(n) or ''
+    last_token_v = last_token.value if last_token else ''
 
-    if last_token_v.lower().endswith('('):
+    if last_token_v == '':
+        return ('keyword', tables)
+    elif last_token_v.lower().endswith('('):
         return ('columns', tables)
     if last_token_v.lower() in ('set', 'by', 'distinct'):
         return ('columns', tables)
@@ -31,6 +36,8 @@ def suggest_type(full_text, text_before_cursor):
         return ('tables', tables)
     elif last_token_v.lower() in ('c', 'use'):  # \c
         return ('databases', tables)
+    elif last_token_v == ',':
+        return suggest_type(full_text, text_before_cursor.rstrip(','))
     else:
         return ('keywords', tables)
 

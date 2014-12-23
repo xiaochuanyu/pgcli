@@ -27,6 +27,7 @@ def test_distinct_suggests_cols():
     assert suggestion == ('columns', [])
 
 def test_col_comma_suggests_cols():
+    import pdb; pdb.set_trace()
     suggestion = suggest_type('SELECT a, b, FROM tbl', 'SELECT a, b,')
     assert suggestion == ('columns-and-functions', ['tbl'])
 
