@@ -1,3 +1,15 @@
+0.18.0
+======
+
+Features:
+---------
+
+
+Bug Fixes:
+----------
+
+* Fix the error when running ``\d table_name`` when running on a table with rules. (Thanks: `Ali Kargın`_)
+
 0.17.0
 ======
 
@@ -212,3 +224,4 @@ Improvements:
 .. _`Jonathan Slenders`: https://github.com/jonathanslenders
 .. _`Dimitar Roustchev`: https://github.com/droustchev
 .. _`François Pietka`: https://github.com/fpietka
+.. _`Ali Kargın`: https://github.com/sancopanco
