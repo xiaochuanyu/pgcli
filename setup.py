@@ -10,7 +10,6 @@ with open('pgcli/__init__.py', 'rb') as f:
 
 description = 'CLI for Postgres Database. With auto-completion and syntax highlighting.'
 
-
 setup(
         name='pgcli',
         author='Amjith Ramanujam',
@@ -28,7 +27,8 @@ setup(
             'prompt_toolkit==0.38',
             'psycopg2 >= 2.5.4',
             'sqlparse == 0.1.14',
-            'configobj >= 5.0.6'
+            'configobj >= 5.0.6',
+            'fuzzywuzzy >= 0.5',
             ],
         entry_points='''
             [console_scripts]

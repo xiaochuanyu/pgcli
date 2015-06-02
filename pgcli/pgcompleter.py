@@ -1,9 +1,11 @@
 from __future__ import print_function, unicode_literals
 import logging
+from re import compile
 from prompt_toolkit.completion import Completer, Completion
+from fuzzywuzzy import process, fuzz
+
 from .packages.sqlcompletion import suggest_type
 from .packages.parseutils import last_word
-from re import compile
 
 try:
     from collections import Counter
@@ -201,7 +203,7 @@ class PGCompleter(Completer):
             if match_point >= 0:
                 yield Completion(item, -len(text))
 
-    def get_completions(self, document, complete_event, smart_completion=None):
+    def get_completions(self, document, complete_event, smart_completion=None, fuzzy=True):
         word_before_cursor = document.get_word_before_cursor(WORD=True)
         if smart_completion is None:
             smart_completion = self.smart_completion
@@ -213,6 +215,7 @@ class PGCompleter(Completer):
                                      start_only=True)
 
         completions = []
+        fuzzy_items = []
         suggestions = suggest_type(document.text, document.text_before_cursor)
 
         for suggestion in suggestions:
@@ -232,8 +235,11 @@ class PGCompleter(Completer):
                                          in Counter(scoped_cols).items()
                                            if count > 1 and col != '*']
 
-                cols = self.find_matches(word_before_cursor, scoped_cols)
-                completions.extend(cols)
+                if fuzzy:
+                    fuzzy_items.extend(scoped_cols)
+                else:
+                    cols = self.find_matches(word_before_cursor, scoped_cols)
+                    completions.extend(cols)
 
             elif suggestion['type'] == 'function':
                 # suggest user-defined functions using substring matching
@@ -259,8 +265,11 @@ class PGCompleter(Completer):
                     schema_names = [s for s in schema_names
                                       if not s.startswith('pg_')]
 
-                schema_names = self.find_matches(word_before_cursor, schema_names)
-                completions.extend(schema_names)
+                if fuzzy:
+                    fuzzy_items.extend(schema_names)
+                else:
+                    schema_names = self.find_matches(word_before_cursor, schema_names)
+                    completions.extend(schema_names)
 
             elif suggestion['type'] == 'table':
                 tables = self.populate_schema_objects(
@@ -272,8 +281,11 @@ class PGCompleter(Completer):
                         not word_before_cursor.startswith('pg_')):
                     tables = [t for t in tables if not t.startswith('pg_')]
 
-                tables = self.find_matches(word_before_cursor, tables)
-                completions.extend(tables)
+                if fuzzy:
+                    fuzzy_items.extend(tables)
+                else:
+                    tables = self.find_matches(word_before_cursor, tables)
+                    completions.extend(tables)
 
             elif suggestion['type'] == 'view':
                 views = self.populate_schema_objects(
@@ -283,17 +295,26 @@ class PGCompleter(Completer):
                         not word_before_cursor.startswith('pg_')):
                     views = [v for v in views if not v.startswith('pg_')]
 
-                views = self.find_matches(word_before_cursor, views)
-                completions.extend(views)
+                if fuzzy:
+                    fuzzy_items.extend(views)
+                else:
+                    views = self.find_matches(word_before_cursor, views)
+                    completions.extend(views)
 
             elif suggestion['type'] == 'alias':
                 aliases = suggestion['aliases']
-                aliases = self.find_matches(word_before_cursor, aliases)
-                completions.extend(aliases)
+                if fuzzy:
+                    fuzzy_items.extend(aliases)
+                else:
+                    aliases = self.find_matches(word_before_cursor, aliases)
+                    completions.extend(aliases)
 
             elif suggestion['type'] == 'database':
-                dbs = self.find_matches(word_before_cursor, self.databases)
-                completions.extend(dbs)
+                if fuzzy:
+                    fuzzy_items.extend(self.databases)
+                else:
+                    dbs = self.find_matches(word_before_cursor, self.databases)
+                    completions.extend(dbs)
 
             elif suggestion['type'] == 'keyword':
                 keywords = self.find_matches(word_before_cursor, self.keywords,
@@ -310,8 +331,12 @@ class PGCompleter(Completer):
                 # suggest custom datatypes
                 types = self.populate_schema_objects(
                     suggestion['schema'], 'datatypes')
-                types = self.find_matches(word_before_cursor, types)
-                completions.extend(types)
+
+                if fuzzy:
+                    fuzzy_items.extend(types)
+                else:
+                    types = self.find_matches(word_before_cursor, types)
+                    completions.extend(types)
 
                 if not suggestion['schema']:
                     # Also suggest hardcoded types
@@ -319,6 +344,9 @@ class PGCompleter(Completer):
                                               self.datatypes, start_only=True)
                     completions.extend(types)
 
+        text = last_word(word_before_cursor, include='most_punctuations').lower()
+        completions.extend([Completion(x[0], -len(text)) for x in
+            process.extractBests(text, fuzzy_items, scorer=fuzz.partial_ratio, limit=10)])
         return completions
 
     def populate_scoped_cols(self, scoped_tbls):
