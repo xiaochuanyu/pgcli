@@ -6,11 +6,14 @@ from .dbcommands import *
 
 log = logging.getLogger(__name__)
 
-def show_help(**_):  # All the parameters are ignored.
+def show_help(query):  # All the parameters are ignored.
     headers = ['Command', 'Description']
     result = []
 
-    for _, value in sorted(COMMANDS.items()):
+    VISIBLE_COMMANDS = STANDARD_COMMANDS.items()
+    VISIBLE_COMMANDS.extend(CUSTOM_COMMANDS.items())
+
+    for _, value in sorted(VISIBLE_COMMANDS):
         if value[1]:
             result.append(value[1])
     return [(None, result, headers, None)]
@@ -29,14 +32,14 @@ def in_progress(**_):
     """
     raise NotImplementedError
 
-COMMANDS = {
-            '\?': (show_help, ['\?', 'Help on pgcli commands.']),
+CUSTOM_COMMANDS = {}
+CUSTOM_COMMANDS_HIDDEN = {}
+STANDARD_COMMANDS = {
+            #'\?': (show_help, ['\?', 'Help on pgcli commands.']),
             '\l': ('''SELECT datname FROM pg_database;''', ['\l', 'List databases.']),
             '\d': (describe_table_details, ['\d [pattern]', 'List or describe tables, views and sequences.']),
             '\dn': (list_schemas, ['\dn[+] [pattern]', 'List schemas.']),
             '\du': (list_roles, ['\du[+] [pattern]', 'List roles.']),
-            '\\x': (toggle_expanded_output, ['\\x', 'Toggle expanded output.']),
-            '\\timing': (toggle_timing, ['\\timing', 'Toggle timing of commands.']),
             '\\dt': (list_tables, ['\\dt[+] [pattern]', 'List tables.']),
             '\\di': (list_indexes, ['\\di[+] [pattern]', 'List indexes.']),
             '\\dv': (list_views, ['\\dv[+] [pattern]', 'List views.']),
@@ -54,7 +57,7 @@ COMMANDS = {
             }
 
 # Commands not shown via help.
-HIDDEN_COMMANDS = {
+STANDARD_COMMANDS_HIDDEN = {
             'describe': (describe_table_details, ['DESCRIBE [pattern]', '']),
             }
 
@@ -73,18 +76,25 @@ def execute(cur=None, sql=''):
     """
     command, verbose, arg = parse_special_command(sql)
 
-    # Look up the command in the case-sensitive dict, if it's not there look in
-    # non-case-sensitive dict. If not there either, throw a KeyError exception.
-    try:
-        command_executor = COMMANDS[command][0]
-    except KeyError:
-        command_executor = HIDDEN_COMMANDS[command.lower()][0]
+    # Throws a KeyError exception if command can't be found.
+    if command in STANDARD_COMMANDS:
+        command_executor = STANDARD_COMMANDS[command][0]
+    elif command in STANDARD_COMMANDS_HIDDEN:
+        command_executor = STANDARD_COMMANDS_HIDDEN[command.lower()][0]
+    elif command in CUSTOM_COMMANDS:
+        command_executor = CUSTOM_COMMANDS[command][0]
+    else:
+        command_executor = CUSTOM_COMMANDS_HIDDEN[command][0]
 
     # If the command executor is a function, then call the function with the
     # args. If it's a string, then assume it's an SQL command and run it.
     if callable(command_executor):
-        return command_executor(cur=cur, pattern=arg, verbose=verbose)
-    elif isinstance(command_executor, str):
+        if ((command in STANDARD_COMMANDS) or
+                (command in STANDARD_COMMANDS_HIDDEN)):
+            return command_executor(cur=cur, pattern=arg, verbose=verbose)
+        else:
+            return command_executor(query=sql)
+    elif isinstance(command, str):
         cur.execute(command_executor)
         if cur.description:
             headers = [x[0] for x in cur.description]
@@ -93,16 +103,29 @@ def execute(cur=None, sql=''):
             return [(None, None, None, cur.statusmessage)]
 
 @export
-def register_special_command(name, handler, syntax, description, hidden=False):
-    global COMMANDS
-    global HIDDEN_COMMANDS
+def register_special_command(name, handler, syntax, description, hidden=False,
+        raw=False):
+    #global CUSTOM_COMMANDS
+    #global CUSTOM_COMMANDS_HIDDEN
+    #global CUSTOM_COMMANDS
+    #global CUSTOM_COMMANDS_HIDDEN
     if hidden:
-        cmd = HIDDEN_COMMANDS
+        if raw:
+            cmd = CUSTOM_COMMANDS_HIDDEN
+        else:
+            cmd = STANDARD_COMMANDS_HIDDEN
     else:
-        cmd = COMMANDS
+        if raw:
+            cmd = CUSTOM_COMMANDS
+        else:
+            cmd = STANDARD_COMMANDS
 
     if cmd.get(name):
         log.info('Overriding existing special command %r.', name)
     else:
         log.debug('Registering special command %r.', name)
     cmd[name] = (handler, [syntax, description])
+
+register_special_command('\?', show_help, '\?', 'Help on pgcli commands.', raw=True)
+register_special_command('\\x', toggle_expanded_output, '\\x', 'Toggle expanded output.', raw=True)
+register_special_command('\\timing', toggle_timing, '\\timing', 'Toggle timing of commands.', raw=True)

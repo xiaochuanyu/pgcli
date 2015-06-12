@@ -8,3 +8,5 @@ def export(defn):
 
 from .dbcommands import *
 from .iocommands import *
+
+__all__.append(iocommands.TIMING_ENABLED)
