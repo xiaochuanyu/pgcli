@@ -34,6 +34,10 @@ syntax_style = default
 # Enables vi-mode
 vi = False
 
+# Always display auto-completion menu as you type. If this is set to False,
+# then you have press <tab> or Ctrl-Space to trigger auto-completion.
+always_on_autocompletion = True
+
 # Named queries are queries you can rexecute by name
 [named queries]
 

@@ -14,7 +14,7 @@ from prompt_toolkit import CommandLineInterface, Application, AbortAction
 from prompt_toolkit.enums import DEFAULT_BUFFER
 from prompt_toolkit.shortcuts import create_default_layout, create_eventloop
 from prompt_toolkit.document import Document
-from prompt_toolkit.filters import Always, HasFocus, IsDone
+from prompt_toolkit.filters import Always, HasFocus, IsDone, Never
 from prompt_toolkit.layout.processors import (ConditionalProcessor,
                                         HighlightMatchingBracketProcessor)
 from prompt_toolkit.history import FileHistory
@@ -69,6 +69,7 @@ class PGCli(object):
         special.set_timing(c['main'].as_bool('timing'))
         self.table_format = c['main']['table_format']
         self.syntax_style = c['main']['syntax_style']
+        self.always_autocomplete = c['main'].as_bool('always_on_autocompletion')
 
         self.logger = logging.getLogger(__name__)
         self.initialize_logging()
@@ -233,9 +234,10 @@ class PGCli(object):
                                                processor=HighlightMatchingBracketProcessor(chars='[](){}'),
                                                filter=HasFocus(DEFAULT_BUFFER) & ~IsDone()),
                                        ])
+        completion_style = Always() if self.always_autocomplete else Never()
         buf = PGBuffer(always_multiline=self.multi_line, completer=completer,
                 history=FileHistory(os.path.expanduser('~/.pgcli-history')),
-                complete_while_typing=Always())
+                complete_while_typing=completion_style)
 
         application = Application(style=style_factory(self.syntax_style),
                                   layout=layout, buffer=buf,
