@@ -71,4 +71,12 @@ def pgcli_bindings(get_vi_mode_enabled, set_vi_mode_enabled):
         else:
             event.cli.start_completion(select_first=False)
 
+    @key_binding_manager.registry.add_binding(Keys.Escape)
+    def _(event):
+        """
+        Close autocompletion.
+        """
+        _logger.debug('Detected <Esc> key.')
+        event.cli.current_buffer.cancel_completion()
+
     return key_binding_manager
